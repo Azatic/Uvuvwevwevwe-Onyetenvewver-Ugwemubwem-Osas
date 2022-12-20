@@ -1,0 +1,277 @@
+﻿@using Blazornew.Data
+@using Blazornew.Services
+@inherits OwningComponentBase<MovieService>
+
+@page "/counter"
+
+<PageTitle>Counter</PageTitle>
+
+<h1>Фильмы</h1>
+
+<div class="input-group">
+    <input type="text" class="form-control rounded" placeholder="Search" aria-label="Search"
+           aria-describedby="search-addon" @bind="ValueSearch"/>
+    <button @onclick="() => GetOneFilm()" type="button" class="btn btn-outline-primary">Search</button>
+</div>
+@ValueSearch
+
+<div style="margin-left: 10px"> @description</div>
+<div align="center" class="container">
+    @if (searchedMovie != null && FilmOnDisplay)
+    {
+        <div style="margin-bottom: 40px" class="col col-lg-4">
+            <div class="card h-100">
+                <img src="@Image"
+                     class="card-img-top"
+                     style="object-fit:contain; height: 250px">
+
+                <div type="div" class="card-body">
+                    <p type="textP" class="card-text" align="left">
+                        Name: @searchedMovie.Name
+                        Rating: @searchedMovie.Rating <br>
+                        <br>
+                        Actors:
+                        @if (searchedMovie.Actors != null)
+                        {
+                            @foreach (var actor in searchedMovie.Actors)
+                            {
+                                <div>
+                                    <a @onclick="() => GetMovieFromActor(actor.name)">@actor.name</a>
+                                </div>
+                            }
+                        }
+
+                        @* Director: *@
+                        @* @if (searchedMovie.Directors != null) *@
+                        @* { *@
+                        @*     @foreach (var director in searchedMovie.Directors) *@
+                        @*     { *@
+                        @*         <div> *@
+                        @*             <a @onclick="() => GetMovieFromDirector(director.Fullname) ">@director.Fullname</a> *@
+                        @*         </div> *@
+                        @*     } *@
+                        @* } *@
+                        Tags:
+                        @if (searchedMovie.Tags != null)
+                        {
+                            @foreach (var tag in searchedMovie.Tags)
+                            {
+                                <div>
+                                    <a @onclick="() => GetMovieFromTag(tag.name)">@tag.name</a>
+                                </div>
+                            }
+                        }
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3">
+            @foreach (var film in searchedMovie.top10)
+            {
+                <div style="margin-bottom: 40px" class="col col-lg-4">
+                    <div class="card h-100">
+                        <div type="div" class="card-body">
+                            <a @onclick="() => GetMoviesAsync(film.Name)">@film.Name</a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (!FilmOnDisplay)
+    {
+        <div style="margin-bottom: 40px" class="col col-lg-4">
+            <div class="card h-100">
+                <img src="@Image"
+                     class="card-img-top"
+                     style="object-fit:contain; height: 250px">
+
+                @foreach (var film in searchedMovies)
+                {
+                    <div>
+                        <a @onclick="() => ActivateGetInfo(film.Name)">@film.Name</a>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    public bool FilmOnDisplay = true;
+    public string currentFilmTitle;
+    public string ValueSearch;
+    public Movie searchedMovie;
+    public string FilmId;
+    public List<ActorsDB> searchedActors;
+    //  public List<Director> searchedDirectors;
+    public string Image;
+    public string PersonImage;
+    public string description;
+    public List<Movie> searchedMovies;
+    public bool isHasDescription = false;
+
+    public async void GetOneFilm()
+    {
+        searchedMovie = Service.GetMovieFromTitle(ValueSearch); //по названию этот метод достает один фильм
+        if (searchedMovie == null)
+        {
+            Image = "https://wonder-day.com/wp-content/uploads/2020/10/wonder-day-among-us-png-29.png";
+            ValueSearch = "NOTHING";
+            return;
+        }
+        if (searchedMovie.Name == currentFilmTitle) return;
+
+        
+        await GetImage(searchedMovie);
+        await GetDescription(searchedMovie);
+        searchedActors = searchedMovie.Actors.ToList();
+    // searchedDirectors = searchedMovie.Directors.ToList();
+        currentFilmTitle = searchedMovie.Name;
+    }
+
+    public async Task GetImage(Movie movie)
+    {
+        var client = new HttpClient();
+        var titleName = movie?.Name.Replace(" ", "%20");
+        var request = new HttpRequestMessage
+        {
+            Method = HttpMethod.Get,
+            RequestUri = new Uri("https://imdb8.p.rapidapi.com/auto-complete?q=" + titleName),
+            Headers =
+            {
+                { "X-RapidAPI-Key", "9e6356c61dmsh8d31febb28d652ep1c16a2jsna4867c67859d" },
+                { "X-RapidAPI-Host", "imdb8.p.rapidapi.com" },
+            },
+        };
+        await GI(request, client);
+    }
+    
+    public async Task GetImage(ActorsDB Actor)
+    {
+        var client = new HttpClient();
+        var ActorName = Actor?.name.Replace(" ", "%20");
+        var request = new HttpRequestMessage
+        {
+            Method = HttpMethod.Get,
+            RequestUri = new Uri("https://imdb8.p.rapidapi.com/auto-complete?q=" + ActorName),
+            Headers =
+            {
+                { "X-RapidAPI-Key", "9e6356c61dmsh8d31febb28d652ep1c16a2jsna4867c67859d" },
+                { "X-RapidAPI-Host", "imdb8.p.rapidapi.com" },
+            },
+        };
+        await GI(request, client);
+    }
+
+    public async Task GetDescription(Movie movie)
+    {
+        isHasDescription = true;
+        var client = new HttpClient();
+        var request = new HttpRequestMessage
+        {
+            Method = HttpMethod.Get,
+            RequestUri = new Uri("https://imdb8.p.rapidapi.com/title/get-synopses?tconst=" + FilmId),
+            Headers =
+            {
+                { "X-RapidAPI-Key", "9e6356c61dmsh8d31febb28d652ep1c16a2jsna4867c67859d" },
+                { "X-RapidAPI-Host", "imdb8.p.rapidapi.com" },
+            },
+        };
+        using (var response = await client.SendAsync(request))
+        {
+            response.EnsureSuccessStatusCode();
+            var responseString = await response.Content.ReadAsStringAsync();
+            try
+            {
+                description = responseString.Substring(responseString.IndexOf("text") + 9);
+            }
+            catch
+            {
+                description = "описания фильма нет";
+            }
+        }
+    }
+
+    public async Task GI(HttpRequestMessage request, HttpClient client)
+    {
+        using (var response = client.Send(request))
+        {
+            var responseString2 = await response.Content.ReadAsStringAsync();
+            try
+            {
+                int startIndex = responseString2.IndexOf("https");
+                int endIndex = responseString2.IndexOf("width", startIndex);
+                Image = responseString2.Substring(startIndex, (endIndex - startIndex) - 3);
+                FilmId = responseString2.Substring(responseString2.IndexOf("id\":\"") + 5, 9);
+            }
+            catch
+            {
+                Image = "https://wonder-day.com/wp-content/uploads/2020/10/wonder-day-among-us-png-29.png";
+            }
+        }
+    }
+
+    public async Task GetMoviesAsync(string Name)
+    {
+        ValueSearch = Name;
+        description = String.Empty;
+        searchedMovie = Service.GetMovieFromTitle(Name);
+        searchedActors = searchedMovie.Actors.ToList();
+    // searchedDirectors = searchedMovie.Directors.ToList();
+        await GetImage(searchedMovie);
+        await GetDescription(searchedMovie);
+    }
+
+    public void GetMovieFromTag(string tagName)
+    {
+        FilmOnDisplay = false;
+        searchedMovies = Service.GetMoviesFromTag(tagName);
+    }
+
+    // public async Task GetMovieFromDirector(string directorFullname)
+    // {
+    //     isDisplayedInfoAboutFilm = false;
+    //     searchedMovies = Service.GetMoviesFromDirector(directorFullname);
+    // }
+    public async Task GetMovieFromActor(string actorFullname)
+    {
+        var client = new HttpClient();
+        var request = new HttpRequestMessage
+        {
+            Method = HttpMethod.Get,
+           // var Actorname = actorFullname.Replace(" ", "%20"),
+            RequestUri = new Uri("https://imdb8.p.rapidapi.com/auto-complete?q=" + actorFullname.Replace(" ", "%20")),
+            Headers =
+            {
+                { "X-RapidAPI-Key", "ba3438375bmsh57a48239c20e4e8p1b25f8jsn1e7a731b663f" },
+                { "X-RapidAPI-Host", "imdb8.p.rapidapi.com" },
+            },
+        };
+        using (var response = await client.SendAsync(request))
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                response.EnsureSuccessStatusCode();
+                var body = await response.Content.ReadAsStringAsync();
+                var actorId = body.Substring(body.IndexOf("nm"), 9);
+                int startIndex = body.IndexOf("https");
+                int endIndex = body.IndexOf("width", startIndex);
+                Image = body.Substring(startIndex, (endIndex - startIndex) - 3);
+            }
+        }
+
+      //  await GetDescription();
+        FilmOnDisplay = false;
+        searchedMovies = Service.GetMoviesFromActor(actorFullname);
+        
+    }
+
+    public void ActivateGetInfo(string movieTitle)
+    {
+        FilmOnDisplay = true;
+        ValueSearch = movieTitle;
+        GetOneFilm();
+    }
+
+}
